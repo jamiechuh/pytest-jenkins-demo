@@ -1,30 +1,42 @@
 pipeline {
-    agent any // 在任意可用节点上执行
+    agent any
 
     stages {
         stage('Checkout') {
             steps {
-                // Jenkins 会自动根据上面的 SCM 配置拉取代码
-                echo '代码拉取完成'
+                checkout scm
             }
         }
+
+        stage('Setup Python') {
+            steps {
+                sh 'python3 --version'
+                sh 'python3 -m venv venv'
+                sh '. venv/bin/activate && pip install --upgrade pip'
+            }
+        }
+
         stage('Install Dependencies') {
             steps {
-                sh 'pip3 install -r requirements.txt'
+                sh '. venv/bin/activate && pip install -r requirements.txt'
             }
         }
+
         stage('Run Tests') {
             steps {
-                // --junitxml 让 pytest 生成 JUnit 格式的报告
-                sh 'pytest tests/ --junitxml=reports/results.xml'
+                sh '. venv/bin/activate && pytest tests/ -v --junitxml=reports/results.xml --cov=tests --cov-report=html:reports/coverage'
             }
         }
     }
 
     post {
         always {
-            // 无论测试成功还是失败，都收集报告
             junit 'reports/results.xml'
+            publishHTML(target: [
+                reportDir: 'reports/coverage',
+                reportFiles: 'index.html',
+                reportName: 'Coverage Report'
+            ])
         }
     }
 }
